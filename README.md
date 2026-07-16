@@ -20,7 +20,7 @@ This project demonstrates real-time object detection using the YOLOv8 model. It 
 ### 1. Clone the repository
 
 ```bash
-    git clone https://github.com/shatakshisingh28/RealTimeObjectDetection.git
+    git clone https://github.com/sujith232/SmartVision.git
     cd RealTimeObjectDetection
 
 ```
@@ -68,23 +68,4 @@ Steps:
 ## 📜 License
 Licensed under the MIT License.
 
-
-## 🚀 About Me
-Hi, I’m Shatakshi Singh ✨
-
-🎓 Pursuing AI & Data Science and passionate about Machine Learning, Deep Learning, and Computer Vision.
-
-💡 Experienced in building projects like  Chatbots, and Real-Time Object Detection.
-
-🌱 Currently exploring Big Data Technologies (Hadoop, Hive, Spark, Pig, HBase).
-
-📚 Preparing for GATE (AI & DS) and placements.
-
-🖌️ Apart from coding, I love singing and painting.
-
-💬 I enjoy working on projects that merge creativity + technology to solve real-world problems.
-
-## 🔗 Links
-[![portfolio](https://img.shields.io/badge/my_portfolio-000?style=for-the-badge&logo=ko-fi&logoColor=white)](https://shatakshi-portfolio.onrender.com/)
-[![linkedin](https://img.shields.io/badge/linkedin-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/shatakshi-singh-256625219/)
 
