@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartVision — Real-Time Object Detection</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ─── Design Tokens ─────────────────────────────────── */
+        :root {
+            --bg:          #050a14;
+            --surface:     #0c1527;
+            --surface2:    #111e35;
+            --border:      rgba(56, 120, 255, 0.18);
+            --accent:      #3878ff;
+            --accent-glow: rgba(56, 120, 255, 0.35);
+            --accent2:     #00d4ff;
+            --text:        #e8edf5;
+            --muted:       #7a8ba8;
+            --danger:      #ff4d6d;
+            --radius:      14px;
+            --radius-sm:   8px;
+        }
+
+        /* ─── Reset & Base ───────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Ambient grid overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(56,120,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56,120,255,0.03) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Ambient glow blobs */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            height: 500px;
+            background: radial-gradient(ellipse at center, rgba(56,120,255,0.12) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ─── Navbar ─────────────────────────────────────────── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(5, 10, 20, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .logo span.brand-dot {
+            color: var(--accent);
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        nav ul li {
+            position: relative;
+        }
+
+        nav ul li a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            transition: color 0.2s, background 0.2s;
+            display: block;
+        }
+
+        nav ul li a:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.06);
+        }
+
+        /* Detections nav item special badge */
+        .nav-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-badge::after {
+            content: '▾';
+            font-size: 0.7rem;
+            color: var(--muted);
+        }
+
+        /* ─── Dropdown ────────────────────────────────────────── */
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            min-width: 210px;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,120,255,0.1);
+            z-index: 200;
+            max-height: 360px;
+            overflow-y: auto;
+            padding: 6px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .dropdown-content::-webkit-scrollbar { width: 4px; }
+        .dropdown-content::-webkit-scrollbar-track { background: transparent; }
+        .dropdown-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        .dropdown-content a {
+            color: var(--muted);
+            padding: 8px 12px;
+            text-decoration: none;
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 400;
+            border-radius: var(--radius-sm);
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .dropdown-content a:hover {
+            color: var(--text);
+            background: rgba(56,120,255,0.12);
+        }
+
+        nav ul li:hover .dropdown-content {
+            display: block;
+        }
+
+        /* ─── Hero Header ─────────────────────────────────────── */
+        .hero {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 64px 24px 40px;
+        }
+
+        .hero-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(56,120,255,0.1);
+            border: 1px solid rgba(56,120,255,0.3);
+            border-radius: 100px;
+            padding: 5px 14px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent2);
+            margin-bottom: 20px;
+        }
+
+        .hero-eyebrow::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--accent2);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent2);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2.2rem, 5vw, 3.6rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            background: linear-gradient(135deg, #ffffff 0%, var(--accent2) 60%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 14px;
+        }
+
+        .hero-sub {
+            font-size: 1rem;
+            color: var(--muted);
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ─── Status Bar ──────────────────────────────────────── */
+        .status-bar {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            padding: 0 24px 36px;
+            flex-wrap: wrap;
+        }
+
+        .stat-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .stat-chip strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .stat-chip .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 6px #22c55e;
+        }
+
+        /* ─── Main Container ──────────────────────────────────── */
+        .container {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 0 auto;
+            padding: 0 32px 48px;
+            max-width: 1280px;
+        }
+
+        /* ─── Cards ───────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+            transition: border-color 0.3s;
+        }
+
+        .card:hover {
+            border-color: rgba(56,120,255,0.35);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .card-title-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+
+        .icon-blue { background: rgba(56,120,255,0.15); }
+        .icon-cyan { background: rgba(0,212,255,0.15); }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(34,197,94,0.12);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 100px;
+            padding: 3px 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            color: #22c55e;
+        }
+
+        .live-badge .dot {
+            width: 5px;
+            height: 5px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        .card-body {
+            padding: 20px 24px 24px;
+        }
+
+        /* ─── Video Feed ──────────────────────────────────────── */
+        #video-feed {
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius);
+            display: block;
+            background: #040810;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+        }
+
+        /* Video placeholder overlay */
+        .video-placeholder {
+            position: relative;
+        }
+
+        .video-placeholder::after {
+            content: '📷  No Feed — Click Start Webcam';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            color: var(--muted);
+            background: #040810;
+            border-radius: var(--radius);
+            pointer-events: none;
+        }
+
+        /* ─── Detection Result ────────────────────────────────── */
+        #result-image {
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius);
+            display: block;
+            background: #040810;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+        }
+
+        /* ─── Buttons ─────────────────────────────────────────── */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .button {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 11px 20px;
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            letter-spacing: 0.01em;
+        }
+
+        /* Start button — primary */
+        .button:first-of-type {
+            background: linear-gradient(135deg, var(--accent) 0%, #5b9fff 100%);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(56,120,255,0.4);
+        }
+
+        .button:first-of-type:hover {
+            box-shadow: 0 6px 28px rgba(56,120,255,0.6);
+            transform: translateY(-1px);
+        }
+
+        /* Stop button — ghost */
+        .button:last-of-type {
+            background: rgba(255,255,255,0.05);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .button:last-of-type:hover {
+            background: rgba(255, 77, 109, 0.1);
+            border-color: rgba(255,77,109,0.4);
+            color: var(--danger);
+        }
+
+        .button:active {
+            transform: scale(0.98);
+        }
+
+        /* ─── Info Strip ──────────────────────────────────────── */
+        .info-strip {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 14px;
+            gap: 8px;
+        }
+
+        .info-pill {
+            flex: 1;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            text-align: center;
+        }
+
+        .info-pill .label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .info-pill .value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent2);
+        }
+
+        /* ─── Footer ──────────────────────────────────────────── */
+        footer {
+            position: relative;
+            z-index: 1;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .footer-logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .footer-logo span { color: var(--accent); }
+
+        footer p {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .footer-links a {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover { color: var(--text); }
+
+        /* ─── Responsive ──────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 0 20px 40px;
+            }
+
+            nav { padding: 0 20px; }
+
+            .status-bar { gap: 12px; }
+
+            footer {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            .hero { padding: 40px 16px 28px; }
+            .btn-row { flex-direction: column; }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ── Navbar ─────────────────────────────────────────────── -->
+    <nav>
+        <a href="#" class="logo">
+            <div class="logo-icon">👁</div>
+            Smart<span class="brand-dot">Vision</span>
+        </a>
+
+        <ul>
+            <li><a href="#" id="home-link">Home</a></li> 
+        </ul> 
+    </nav>
+
+    <!-- ── Hero ───────────────────────────────────────────────── -->
+    <div class="hero">
+        <h1>SmartVision</h1>
+    </div>
+
+
+    <!-- ── Main Panel ─────────────────────────────────────────── -->
+    <div class="container">
+
+        <!-- Video Feed Card -->
+        <div class="card" id="video-container">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="card-title-icon icon-blue"></div>
+                    Live Camera Feed
+                </div>
+                <div class="live-badge"><span class="dot"></span> LIVE</div>
+            </div>
+            <div class="card-body">
+                <video id="video-feed" width="640" height="480" autoplay></video>
+            </div>
+        </div>
+
+        <!-- Detection Result Card -->
+        <div class="card" id="detection-container">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="card-title-icon icon-cyan"></div>
+                    Detected Objects
+                </div>
+                <div class="live-badge" style="background:rgba(56,120,255,0.12);border-color:rgba(56,120,255,0.3);color:var(--accent2);">AI</div>
+            </div>
+            <div class="card-body">
+                <div id="detection-result">
+                    <img id="result-image" src="https://media.licdn.com/dms/image/v2/D4D12AQGd4lUTPBT1Yg/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1714677490511?e=2147483647&v=beta&t=ypFCxts2vrnj5Z7Zhn1tPe5evI77aOVjgrpvuF7ASIw" alt="Detection result will appear here">
+                </div>
+
+                <div class="btn-row">
+                    <button class="button" onclick="startWebcam()">▶ Start Webcam</button>
+                    <button class="button" onclick="stopWebcam()">⏹ Stop</button>
+                </div>
+
+                
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Footer ─────────────────────────────────────────────── -->
+    <footer>
+        <div class="footer-logo">Smart<span>Vision</span></div>
+        <p>&copy; 2026 SmartVision. All Rights Reserved.</p>
+        <div class="footer-links">
+        </div>
+    </footer>
+
+    <!-- ── JavaScript (UNCHANGED) ─────────────────────────────── -->
+    <script>
+        // Refresh the page when "Home" is clicked
+        document.getElementById('home-link').addEventListener('click', (e) => {
+            e.preventDefault();  // Prevent default link behavior
+            window.location.reload();  // Reload the page
+        });
+
+        const videoElement = document.getElementById('video-feed');
+        const resultImage = document.getElementById('result-image');
+        let videoStream = null;
+
+        // Access webcam feed
+        async function startWebcam() {
+            videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoElement.srcObject = videoStream;
+            captureAndDetect();
+        }
+
+        // Stop the webcam stream
+        function stopWebcam() {
+            if (videoStream) {
+                const tracks = videoStream.getTracks();
+                tracks.forEach(track => track.stop());
+                videoStream = null;
+                videoElement.srcObject = null;
+                resultImage.src = '';  // Clear the detection result
+            }
+        }
+
+        // Capture frames from the webcam and send them to the backend for processing
+        async function captureAndDetect() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+
+            // Draw the current video frame onto the canvas
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas to image data (Base64)
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            // Send the image data to the backend
+            const formData = new FormData();
+            formData.append('image', dataURLtoBlob(imageData), 'frame.jpg');
+
+            // Send the image to the backend
+            const response = await fetch('/predict', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.image) {
+                // Display the annotated image with bounding boxes
+                resultImage.src = `data:image/jpeg;base64,${result.image}`;
+            }
+
+            // Repeat the process every 100ms (10 FPS)
+            setTimeout(captureAndDetect, 100);
+        }
+
+        // Helper function to convert Base64 to Blob
+        function dataURLtoBlob(dataURL) {
+            const byteString = atob(dataURL.split(',')[1]);
+            const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        // Sort the features dropdown items alphabetically
+        window.onload = function () {
+            const dropdownContent = document.querySelector('.dropdown-content');
+            const links = Array.from(dropdownContent.getElementsByTagName('a'));
+
+            // Sort the list items alphabetically
+            links.sort((a, b) => a.textContent.localeCompare(b.textContent));
+
+            // Append the sorted items back to the dropdown
+            links.forEach(link => dropdownContent.appendChild(link));
+        };
+    </script>
+</body>
+
+</html>
